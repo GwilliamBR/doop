@@ -42,7 +42,7 @@ import { extensions } from './extensions.ts'
 import * as workspaces from './workspaces.ts'
 import * as billing from './billing.ts'
 import * as demo from './demo.ts'
-import { db, initDb } from './db/index.ts'
+import { closeDb, db, initDb } from './db/index.ts'
 import * as authSchema from './db/auth-schema.ts'
 import * as persist from './db/persist.ts'
 import { handleMcpRequest } from './mcp.ts'
@@ -156,6 +156,8 @@ for (const sig of ['SIGINT', 'SIGTERM'] as const) {
     persist
       .flush((id) => store.getFrame(id))
       .catch((err) => console.error('flush on shutdown failed', err))
+      .then(() => closeDb())
+      .catch((err) => console.error('db close on shutdown failed', err))
       .finally(() => process.exit(0))
   })
 }
