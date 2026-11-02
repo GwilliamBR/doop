@@ -85,8 +85,14 @@
         "Submitting a malformed Figma link displays an error explaining the expected format.",
         "Figma API rate limits return a human-readable message without resetting existing state."
       ],
-      "status": "not_started",
-      "evidence": null,
+      "status": "passing",
+      "evidence": {
+        "what_ran": "bun run test tests/figmaIntegration.test.ts tests/figmaSettingsCard.test.tsx tests/figmaImportSection.test.tsx",
+        "what_was_seen": "All 24 tests passed verifying clear recovery messages for invalid tokens, malformed links, rate limits, and interactive state preservation",
+        "method": "test",
+        "commit": "8597519",
+        "date": "2026-11-02T21:43:38Z"
+      },
       "note": "",
       "seal": "fb43ecf0441407026f3d3511c569c4dd078892ee4f6524abf037bc9f5f2d7ebb"
     },

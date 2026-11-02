@@ -19,3 +19,8 @@ SEAL 6c2b390b74c591cff07ad52bcc163f3019957028ec9af79de94fa8666e84135d 2026-11-02
 2026-11-02T20:33:30Z START_CHECK passed
 2026-11-02T20:37:44Z PASS F3 passing (method test, commit 0c9891a)
 2026-11-02T20:38:07Z NOTE F3 completed and verified: MCP tool import_figma registered with agent tool parity and full end-to-end canvas landing.
+2026-11-02T21:19:12Z START_CHECK passed
+2026-11-02T21:19:26Z BEGIN F4 in_progress
+2026-11-02T21:42:44Z START_CHECK passed
+2026-11-02T21:43:38Z PASS F4 passing (method test, commit 8597519)
+2026-11-02T21:44:37Z NOTE F4 completed and verified: clear recovery messages for invalid tokens, malformed links, and rate limits implemented and tested.
