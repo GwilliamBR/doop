@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { canEditOpenCanvas, pickedSelectors, roleOf, useStore } from '../lib/store'
 import { MOD_KEY, isHideUiShortcut } from '../lib/keys'
 import { canHideUi, hideUiHinted } from '../lib/hideUi'
@@ -44,6 +44,7 @@ import { flowStartFrame } from '../../shared/prototype'
 import type { Frame } from '../../shared/types'
 import { ImportStepFooter, ImportStepHeader, SourcePicker } from '../components/ImportSources'
 import { importSources } from '../components/importSourceList'
+import { clientIntegrations } from '../integrations'
 import { PresentMode } from '../components/PresentMode'
 import { getIdentity, setName } from '../lib/identity'
 import {
@@ -1066,6 +1067,8 @@ function ImportModal({
   const [repoSelected, setRepoSelected] = useState<Set<string>>(new Set())
   const [extractSystem, setExtractSystem] = useState(true)
   const [showPages, setShowPages] = useState(false)
+  const [integrationReview, setIntegrationReview] = useState<ReactNode | null>(null)
+  const activeIntegration = clientIntegrations.find((i) => i.id === source && i.ImportSection)
 
   function errorMessage(caught: unknown, fallback: string) {
     if (caught instanceof ApiError) return String(caught.body.error ?? fallback)
@@ -1357,6 +1360,8 @@ function ImportModal({
               </Button>
             </ModalActions>
           </>
+        ) : integrationReview ? (
+          integrationReview
         ) : !discovery ? (
           <>
             {source === null ? (
@@ -1435,6 +1440,13 @@ function ImportModal({
                 installPass={installPass}
                 installError={installError}
                 onReview={openRepoReview}
+                onBack={() => setSource(null)}
+              />
+            ) : activeIntegration?.ImportSection ? (
+              <activeIntegration.ImportSection
+                canvasId={canvasId}
+                setReview={setIntegrationReview}
+                onImporting={(count, frameIds = []) => onDone(frameIds, 0)}
                 onBack={() => setSource(null)}
               />
             ) : null}

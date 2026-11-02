@@ -2098,6 +2098,18 @@ app.post('/api/canvases/:id/import', async (req, res) => {
   }
 })
 
+for (const extension of extensions) {
+  if (extension.canvasRouter) {
+    app.use(
+      `/api/canvases/:id/${extension.id}`,
+      extension.canvasRouter({
+        requireCanvas,
+        takeImportSlot,
+      }),
+    )
+  }
+}
+
 app.post('/api/canvases/:id/cards', async (req, res) => {
   if (!requireCanvas(req, res, req.params.id, 'edit')) return
   const title = String(req.body?.title ?? '').trim()

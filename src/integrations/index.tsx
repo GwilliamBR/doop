@@ -27,7 +27,7 @@ export interface ImportSectionProps {
   /** swap the modal to a review view (null returns to this screen) */
   setReview(view: ReactNode | null): void
   /** the import started and runs on as a task — close the modal */
-  onImporting(frameCount: number): void
+  onImporting(frameCount: number, frameIds?: string[]): void
   /** return to the source picker */
   onBack(): void
 }

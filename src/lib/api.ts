@@ -485,6 +485,19 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ urls }),
     }),
+  discoverFigmaFrames: (canvasId: string, url: string) =>
+    req<{ fileKey: string; frames: { id: string; name: string; pageName: string; width: number; height: number }[] }>(
+      `/api/canvases/${canvasId}/figma/discover`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ url }),
+      },
+    ),
+  importFigmaFrames: (canvasId: string, url: string, nodeIds?: string[]) =>
+    req<{ frames: Frame[] }>(`/api/canvases/${canvasId}/figma/import`, {
+      method: 'POST',
+      body: JSON.stringify({ url, nodeIds }),
+    }),
   agentAllowance: () => req<Allowance>('/api/agent-allowance'),
   modelAccount: () => req<ModelAccountStatus>('/api/model-account'),
   agentModels: () => req<AgentModelCatalog>('/api/model-account/models'),
