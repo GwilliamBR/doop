@@ -24,3 +24,8 @@ SEAL 6c2b390b74c591cff07ad52bcc163f3019957028ec9af79de94fa8666e84135d 2026-11-02
 2026-11-02T21:42:44Z START_CHECK passed
 2026-11-02T21:43:38Z PASS F4 passing (method test, commit 8597519)
 2026-11-02T21:44:37Z NOTE F4 completed and verified: clear recovery messages for invalid tokens, malformed links, and rate limits implemented and tested.
+2026-11-02T21:45:47Z START_CHECK passed
+2026-11-02T21:48:37Z BEGIN F5 in_progress
+2026-11-02T21:58:36Z START_CHECK passed
+2026-11-02T21:59:12Z PASS F5 passing (method test, commit 65a0c12)
+2026-11-02T21:59:39Z NOTE F5 completed and verified: token privacy on GET /api/integrations, valid token preservation on failed replacement, and asset creation validation for imported remote images verified.

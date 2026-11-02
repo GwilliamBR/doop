@@ -106,8 +106,14 @@
         "Replacing an invalid token keeps the previous valid token intact until verified.",
         "Imported remote image fills pass through asset creation validation before saving."
       ],
-      "status": "not_started",
-      "evidence": null,
+      "status": "passing",
+      "evidence": {
+        "what_ran": "bun run test tests/figmaIntegration.test.ts",
+        "what_was_seen": "All 17 integration tests passed verifying token privacy in GET /api/integrations, invalid token replacement preservation, and remote image asset validation",
+        "method": "test",
+        "commit": "65a0c12",
+        "date": "2026-11-02T21:59:12Z"
+      },
       "note": "",
       "seal": "6970f15b732574e8a0c159cf1012cc0d416b137ee269cd9be02ed0fb40f8bdcd"
     },
