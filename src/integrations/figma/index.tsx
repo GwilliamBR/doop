@@ -76,7 +76,11 @@ export function FigmaSettingsCard({
       showToast(figma.connected ? 'Figma key replaced.' : 'Figma connected.')
     } catch (err) {
       setError(
-        err instanceof ApiError ? String(err.body.error ?? 'Could not connect Figma.') : 'Could not connect Figma.',
+        err instanceof ApiError
+          ? String(err.body.error ?? 'Could not connect Figma.')
+          : err instanceof Error
+            ? err.message
+            : 'Could not connect Figma.',
       )
     } finally {
       setBusy(false)
@@ -227,7 +231,11 @@ function FigmaReviewView({
       onDone(result.frames)
     } catch (err) {
       setError(
-        err instanceof ApiError ? String(err.body.error ?? 'Could not import frames.') : 'Could not import frames.',
+        err instanceof ApiError
+          ? String(err.body.error ?? 'Could not import frames.')
+          : err instanceof Error
+            ? err.message
+            : 'Could not import frames.',
       )
       setBusy(false)
     }
@@ -345,7 +353,11 @@ export function FigmaImportSection({ canvasId, setReview, onImporting, onBack }:
       setTokenInput('')
     } catch (err) {
       setError(
-        err instanceof ApiError ? String(err.body.error ?? 'Could not connect Figma.') : 'Could not connect Figma.',
+        err instanceof ApiError
+          ? String(err.body.error ?? 'Could not connect Figma.')
+          : err instanceof Error
+            ? err.message
+            : 'Could not connect Figma.',
       )
     } finally {
       setConnecting(false)

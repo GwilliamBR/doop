@@ -28,6 +28,10 @@ beforeAll(async () => {
     res.setHeader('Content-Type', 'application/json')
 
     if (url.pathname === '/v1/me') {
+      if (token === 'figd_rate_limited') {
+        res.writeHead(429)
+        return res.end(JSON.stringify({ status: 429, err: 'Rate limit exceeded' }))
+      }
       if (token === 'figd_valid_token_123') {
         res.writeHead(200)
         return res.end(
@@ -52,6 +56,11 @@ beforeAll(async () => {
       }
       res.writeHead(403)
       return res.end(JSON.stringify({ status: 403, err: 'Invalid token' }))
+    }
+
+    if (url.pathname === '/v1/files/rateLimitedFileKey') {
+      res.writeHead(429)
+      return res.end(JSON.stringify({ status: 429, err: 'Rate limit exceeded' }))
     }
 
     if (url.pathname === '/v1/files/sampleFileKey') {
@@ -220,6 +229,38 @@ describe('Figma integration connection lifecycle', () => {
     })
   })
 
+  it('rejects an invalid token format and preserves the existing valid connection', async () => {
+    const failedFormatResponse = await owner.post('/api/integrations/figma/token', {
+      token: 'bad',
+    })
+    expect(failedFormatResponse.status).toBe(400)
+    expect(await failedFormatResponse.json()).toEqual({
+      error: 'Enter a valid Figma personal access token.',
+    })
+
+    const statusPreserved = await getFigmaStatus(owner)
+    expect(statusPreserved).toMatchObject({
+      connected: true,
+      accountName: 'design_lead (designer@example.com)',
+    })
+  })
+
+  it('handles Figma rate limit when connecting and preserves existing valid connection', async () => {
+    const rateLimitedResponse = await owner.post('/api/integrations/figma/token', {
+      token: 'figd_rate_limited',
+    })
+    expect(rateLimitedResponse.status).toBe(429)
+    expect(await rateLimitedResponse.json()).toEqual({
+      error: 'Figma rate limit reached. Try again later.',
+    })
+
+    const statusPreserved = await getFigmaStatus(owner)
+    expect(statusPreserved).toMatchObject({
+      connected: true,
+      accountName: 'design_lead (designer@example.com)',
+    })
+  })
+
   it('replaces key with a new valid token', async () => {
     const replaceResponse = await owner.post('/api/integrations/figma/token', {
       token: 'figd_replacement_token_456',
@@ -296,6 +337,40 @@ describe('Figma canvas frame import', () => {
       url: 'https://www.figma.com/design/sampleFileKey/Mobile-App-UI',
     })
     expect(strangerDiscover.status).toBe(403)
+  })
+
+  it('returns helpful error when submitting malformed Figma links', async () => {
+    const emptyRes = await owner.post(`/api/canvases/${canvasId}/figma/discover`, {
+      url: '',
+    })
+    expect(emptyRes.status).toBe(400)
+    expect(await emptyRes.json()).toEqual({
+      error: 'Enter a Figma file or frame link.',
+    })
+
+    const nonFigmaRes = await owner.post(`/api/canvases/${canvasId}/figma/discover`, {
+      url: 'https://example.com/not-a-figma-link',
+    })
+    expect(nonFigmaRes.status).toBe(400)
+    expect(await nonFigmaRes.json()).toEqual({
+      error: 'Enter a valid Figma link with a file key (e.g. https://www.figma.com/design/KEY/Title?node-id=1-2).',
+    })
+  })
+
+  it('handles rate limit during discovery and keeps connection intact', async () => {
+    const rateLimitRes = await owner.post(`/api/canvases/${canvasId}/figma/discover`, {
+      url: 'https://www.figma.com/design/rateLimitedFileKey/Rate-Limited-UI',
+    })
+    expect(rateLimitRes.status).toBe(429)
+    expect(await rateLimitRes.json()).toEqual({
+      error: 'Figma rate limit reached. Try again later.',
+    })
+
+    const statusPreserved = await getFigmaStatus(owner)
+    expect(statusPreserved).toMatchObject({
+      connected: true,
+      accountName: 'design_lead (designer@example.com)',
+    })
   })
 
   it('imports selected figma frame onto canvas as editable HTML with images and layout', async () => {
