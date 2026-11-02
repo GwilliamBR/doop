@@ -63,8 +63,14 @@
         "The tool returns success with the imported frame details.",
         "Verify the imported frame exists on the canvas with correct dimensions and HTML content."
       ],
-      "status": "not_started",
-      "evidence": null,
+      "status": "passing",
+      "evidence": {
+        "what_ran": "bun run test tests/figmaIntegration.test.ts tests/agentToolParity.test.ts",
+        "what_was_seen": "All 14 tests passed verifying MCP import_figma tool call, canvas frame creation with correct dimensions and HTML, and agent tool parity",
+        "method": "test",
+        "commit": "0c9891a",
+        "date": "2026-11-02T20:37:44Z"
+      },
       "note": "",
       "seal": "c4419c911d5a303e3d0852a7b5777c5e5784fa87d86ad8ca97edba1617232003"
     },
