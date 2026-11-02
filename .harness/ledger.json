@@ -19,8 +19,14 @@
         "Click Replace key and enter a new token to update the connection.",
         "Click Disconnect and confirm the connection is removed."
       ],
-      "status": "not_started",
-      "evidence": null,
+      "status": "passing",
+      "evidence": {
+        "what_ran": "bun run test tests/figmaIntegration.test.ts tests/figmaSettingsCard.test.tsx",
+        "what_was_seen": "All 9 integration and settings card tests passed for connect, replace key, invalid key preservation, and disconnect",
+        "method": "test",
+        "commit": "52a8722",
+        "date": "2026-11-02T19:16:29Z"
+      },
       "note": "",
       "seal": "5b47d856ba83de408c43c673453da772566f73ae920c14a03d93f56938f693a9"
     },
