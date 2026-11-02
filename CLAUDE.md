@@ -50,3 +50,9 @@ tests/             - vitest test suite
 TypeScript. Always use the `clean-code:typescript` skill when writing or reviewing TypeScript
 code. Formatter and lint rules are captured in `.context/CODESTYLE.md`, which `.context/INDEX.md`
 links.
+
+## Harness build (Full mode)
+
+- State lives in `.harness/` (ledger and progress log). Start every session by reading the end of `.harness/progress.md`, then run `python3 .harness/harness.py start-check`.
+- Change entry status only through `python3 .harness/harness.py`. Never edit the ledger by hand or edit a test to make it pass.
+- When compacting, always preserve the list of modified files, the Start Check command, and the current entry id.

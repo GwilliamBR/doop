@@ -1,0 +1,107 @@
+{
+  "schema_version": 1,
+  "project": "Doop",
+  "branch": "slc",
+  "start_check": ["bash", "scripts/start-check.sh"],
+  "start_check_timeout_seconds": 180,
+  "seal": "6c2b390b74c591cff07ad52bcc163f3019957028ec9af79de94fa8666e84135d",
+  "sealed_at": "2026-11-02T18:29:44Z",
+  "entries": [
+    {
+      "id": "F1",
+      "title": "A user can connect, replace, and disconnect a Figma token on the integrations page",
+      "category": "journey",
+      "order": 1,
+      "criteria": [
+        "Open the integrations page at /integrations.",
+        "Enter a valid Figma personal access token in the Figma card and click Connect.",
+        "The card displays the connected Figma handle and connection status.",
+        "Click Replace key and enter a new token to update the connection.",
+        "Click Disconnect and confirm the connection is removed."
+      ],
+      "status": "not_started",
+      "evidence": null,
+      "note": "",
+      "seal": "5b47d856ba83de408c43c673453da772566f73ae920c14a03d93f56938f693a9"
+    },
+    {
+      "id": "F2",
+      "title": "A user can import Figma frames from a link onto a canvas",
+      "category": "journey",
+      "order": 2,
+      "criteria": [
+        "Open an existing canvas and open the Import modal.",
+        "Select Figma as the import source and paste a Figma frame or file link.",
+        "Review the discovered frames list and choose which frames to import.",
+        "Click Import and observe the frames land on the canvas as editable HTML.",
+        "Inspect the new canvas frame to verify layout, text, colors, and image fills render correctly."
+      ],
+      "status": "not_started",
+      "evidence": null,
+      "note": "",
+      "seal": "111ab908a1a44567c19e01d3f60d8fcf2f74ae2096e7ededf85e9a2c246b6595"
+    },
+    {
+      "id": "F3",
+      "title": "An MCP agent can import Figma frames onto a canvas",
+      "category": "journey",
+      "order": 3,
+      "criteria": [
+        "Call the import_figma tool with a canvas ID and Figma URL.",
+        "The tool returns success with the imported frame details.",
+        "Verify the imported frame exists on the canvas with correct dimensions and HTML content."
+      ],
+      "status": "not_started",
+      "evidence": null,
+      "note": "",
+      "seal": "c4419c911d5a303e3d0852a7b5777c5e5784fa87d86ad8ca97edba1617232003"
+    },
+    {
+      "id": "F4",
+      "title": "The interface provides clear recovery messages for connection and link errors",
+      "category": "quality_floor",
+      "order": 4,
+      "criteria": [
+        "Opening Figma import while disconnected directs the user to connect their token.",
+        "Submitting an invalid token displays a helpful error and keeps the card interactive.",
+        "Submitting a malformed Figma link displays an error explaining the expected format.",
+        "Figma API rate limits return a human-readable message without resetting existing state."
+      ],
+      "status": "not_started",
+      "evidence": null,
+      "note": "",
+      "seal": "fb43ecf0441407026f3d3511c569c4dd078892ee4f6524abf037bc9f5f2d7ebb"
+    },
+    {
+      "id": "F5",
+      "title": "Figma tokens remain private and remote images pass validation",
+      "category": "safety",
+      "order": 5,
+      "criteria": [
+        "Verify GET /api/integrations never returns the Figma personal access token.",
+        "Replacing an invalid token keeps the previous valid token intact until verified.",
+        "Imported remote image fills pass through asset creation validation before saving."
+      ],
+      "status": "not_started",
+      "evidence": null,
+      "note": "",
+      "seal": "6970f15b732574e8a0c159cf1012cc0d416b137ee269cd9be02ed0fb40f8bdcd"
+    },
+    {
+      "id": "F6",
+      "title": "The integration passes all automated test suites and type checks",
+      "category": "test",
+      "order": 6,
+      "criteria": [
+        "Run bun test tests/figmaIntegration.test.ts and verify all tests pass.",
+        "Run bun test tests/agentToolParity.test.ts and verify all parity checks pass.",
+        "Run bun run typecheck with zero errors.",
+        "Run bun run lint with zero warnings and zero errors."
+      ],
+      "status": "not_started",
+      "evidence": null,
+      "note": "",
+      "seal": "320975906946145ab3663d76a5b6ca934cb0818f3bc08a7d0d942effa4f13651"
+    }
+  ]
+}
