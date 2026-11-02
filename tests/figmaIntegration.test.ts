@@ -25,6 +25,12 @@ beforeAll(async () => {
       return res.end(samplePng)
     }
 
+    if (url.pathname === '/image-download/corrupted-img') {
+      res.setHeader('Content-Type', 'text/plain')
+      res.writeHead(200)
+      return res.end('INVALID_NOT_AN_IMAGE')
+    }
+
     res.setHeader('Content-Type', 'application/json')
 
     if (url.pathname === '/v1/me') {
@@ -163,6 +169,76 @@ beforeAll(async () => {
       )
     }
 
+    if (url.pathname === '/v1/files/corruptedImageFileKey') {
+      res.writeHead(200)
+      return res.end(
+        JSON.stringify({
+          name: 'Corrupted File',
+          document: {
+            id: '0:0',
+            name: 'Document',
+            type: 'DOCUMENT',
+            children: [
+              {
+                id: '0:1',
+                name: 'Page 1',
+                type: 'CANVAS',
+                children: [
+                  {
+                    id: '3:1',
+                    name: 'Corrupt Image Frame',
+                    type: 'FRAME',
+                    absoluteBoundingBox: { x: 0, y: 0, width: 300, height: 200 },
+                  },
+                ],
+              },
+            ],
+          },
+        }),
+      )
+    }
+
+    if (url.pathname === '/v1/files/corruptedImageFileKey/nodes') {
+      res.writeHead(200)
+      return res.end(
+        JSON.stringify({
+          name: 'Corrupted File',
+          nodes: {
+            '3:1': {
+              document: {
+                id: '3:1',
+                name: 'Corrupt Image Frame',
+                type: 'FRAME',
+                absoluteBoundingBox: { x: 0, y: 0, width: 300, height: 200 },
+                children: [
+                  {
+                    id: '3:2',
+                    name: 'Corrupt Rect',
+                    type: 'RECTANGLE',
+                    absoluteBoundingBox: { x: 0, y: 0, width: 100, height: 100 },
+                    fills: [{ type: 'IMAGE', imageRef: 'corruptRef' }],
+                  },
+                ],
+              },
+            },
+          },
+        }),
+      )
+    }
+
+    if (url.pathname === '/v1/files/corruptedImageFileKey/images') {
+      res.writeHead(200)
+      return res.end(
+        JSON.stringify({
+          meta: {
+            images: {
+              corruptRef: `http://localhost:${figmaPort}/image-download/corrupted-img`,
+            },
+          },
+        }),
+      )
+    }
+
     res.writeHead(404)
     res.end(JSON.stringify({ status: 404, err: 'Not found' }))
   })
@@ -272,6 +348,16 @@ describe('Figma integration connection lifecycle', () => {
       connected: true,
       accountName: 'senior_lead (senior@example.com)',
     })
+  })
+
+  it('never returns the Figma personal access token in /api/integrations response', async () => {
+    const rawRes = await owner.get('/api/integrations')
+    expect(rawRes.status).toBe(200)
+    const rawText = await rawRes.text()
+    expect(rawText).not.toContain('figd_')
+    const json = JSON.parse(rawText) as { figma?: { connected?: boolean; accessToken?: unknown } }
+    expect(json.figma?.connected).toBe(true)
+    expect(json.figma?.accessToken).toBeUndefined()
   })
 
   it('isolates connections between different users', async () => {
@@ -406,6 +492,22 @@ describe('Figma canvas frame import', () => {
     expect(html).toContain('gap: 16px;')
     expect(html).toContain('Welcome to Doop')
     expect(html).toContain('/api/assets/')
+  })
+
+  it('skips invalid remote image fills without creating corrupt assets', async () => {
+    const importRes = await owner.post(`/api/canvases/${canvasId}/figma/import`, {
+      url: 'https://www.figma.com/design/corruptedImageFileKey/Corrupt-Image-Test?node-id=3-1',
+      nodeIds: ['3:1'],
+    })
+    expect(importRes.status).toBe(200)
+
+    const importData = (await importRes.json()) as {
+      frames: { id: string; name: string; width: number; height: number; html: string }[]
+    }
+    expect(importData.frames).toHaveLength(1)
+    const importedFrame = importData.frames[0]!
+    expect(importedFrame.name).toBe('Corrupt Image Frame')
+    expect(importedFrame.html).not.toContain('/api/assets/')
   })
 })
 
