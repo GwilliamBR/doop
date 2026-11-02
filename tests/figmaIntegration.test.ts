@@ -333,3 +333,58 @@ describe('Figma canvas frame import', () => {
     expect(html).toContain('/api/assets/')
   })
 })
+
+describe('Figma MCP agent tool', () => {
+  let mcpCanvasId: string
+  let agentSecret: string
+
+  beforeAll(async () => {
+    const createRes = await owner.post('/api/canvases', { name: 'Figma MCP Canvas' })
+    mcpCanvasId = ((await createRes.json()) as { id: string }).id
+    const keyRes = await owner.post('/api/agent-keys', { name: 'figma-agent' })
+    agentSecret = ((await keyRes.json()) as { secret: string }).secret
+  })
+
+  it('allows an MCP agent to call import_figma and land frames on canvas', async () => {
+    const res = await fetch(`${server.base}/mcp`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json, text/event-stream',
+        Authorization: `Bearer ${agentSecret}`,
+      },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'tools/call',
+        params: {
+          name: 'import_figma',
+          arguments: {
+            canvas_id: mcpCanvasId,
+            url: 'https://www.figma.com/design/sampleFileKey/Mobile-App-UI?node-id=1-2',
+            agent_name: 'DesignBot',
+          },
+        },
+      }),
+    })
+    expect(res.status).toBe(200)
+    const json = (await res.json()) as {
+      result: { isError?: boolean; content: { type: string; text?: string }[] }
+    }
+    expect(json.result.isError).toBeFalsy()
+    const text = json.result.content[0]?.text ?? ''
+    expect(text).toContain('"success": true')
+    expect(text).toContain('"count": 1')
+
+    const canvasRes = await owner.get(`/api/canvases/${mcpCanvasId}`)
+    const canvas = (await canvasRes.json()) as {
+      frames: { id: string; name: string; width: number; height: number; html: string }[]
+    }
+    expect(canvas.frames).toHaveLength(1)
+    const frame = canvas.frames[0]!
+    expect(frame.name).toBe('Login Screen')
+    expect(frame.width).toBe(375)
+    expect(frame.height).toBe(812)
+    expect(frame.html).toContain('Welcome to Doop')
+  })
+})

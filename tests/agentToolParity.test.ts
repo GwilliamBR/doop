@@ -44,6 +44,7 @@ const MISSING = [
   'upload_asset',
   'list_linear_issues', // integration tools, registered by their connections
   'get_linear_issue',
+  'import_figma',
 ]
 
 async function mcpToolNames(): Promise<string[]> {
