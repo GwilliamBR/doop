@@ -6,6 +6,7 @@ import type { CanvasRole } from '../shared/canvasRole.ts'
 import type { PullStep, SlackStep, LinearStep } from '../shared/automations.ts'
 import { linearExtension } from './linear/extension.ts'
 import { slackExtension } from './slack/extension.ts'
+import { figmaExtension } from './figma/extension.ts'
 
 /**
  * Server extensions: integrations that are removable as a unit. The core
@@ -127,4 +128,4 @@ export interface ServerExtension {
   ): Promise<{ summary: string; url?: string }>
 }
 
-export const extensions: ServerExtension[] = [linearExtension, slackExtension]
+export const extensions: ServerExtension[] = [figmaExtension, linearExtension, slackExtension]
