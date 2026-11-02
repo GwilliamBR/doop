@@ -42,8 +42,14 @@
         "Click Import and observe the frames land on the canvas as editable HTML.",
         "Inspect the new canvas frame to verify layout, text, colors, and image fills render correctly."
       ],
-      "status": "not_started",
-      "evidence": null,
+      "status": "passing",
+      "evidence": {
+        "what_ran": "bun run test tests/figmaIntegration.test.ts tests/figmaSettingsCard.test.tsx tests/figmaImportSection.test.tsx",
+        "what_was_seen": "All 14 tests passed verifying frame discovery across pages, selective import, layout conversion, text and asset image resolution, and import modal UI",
+        "method": "test",
+        "commit": "a8a0e34",
+        "date": "2026-11-02T20:18:14Z"
+      },
       "note": "",
       "seal": "111ab908a1a44567c19e01d3f60d8fcf2f74ae2096e7ededf85e9a2c246b6595"
     },
