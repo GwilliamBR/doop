@@ -5,7 +5,37 @@ import * as actions from '../actions.ts'
 import type { Frame } from '../../shared/types.ts'
 import { connect, connectionStatus, disconnect, getConnection } from './connection.ts'
 import { FigmaError } from './client.ts'
-import { discoverFigmaFrames, importFigmaNodes, parseFigmaUrl } from './importer.ts'
+import { discoverFigmaFrames, importFigmaNodes, parseFigmaUrl, type ImportedFigmaFrame } from './importer.ts'
+import { placeImportedFrames } from './placement.ts'
+
+const MAX_FRAME_NAME_LENGTH = 80
+
+type ImportActor = Parameters<typeof actions.createFrame>[2]
+type ImportCanvas = { id: string; frames: Pick<Frame, 'x' | 'width'>[] }
+
+function landImportedFrames(canvas: ImportCanvas, imported: ImportedFigmaFrame[], actor: ImportActor): Frame[] {
+  const positions = placeImportedFrames(canvas.frames, imported)
+  const created: Frame[] = []
+
+  imported.forEach((item, index) => {
+    const position = positions[index]!
+    const frame = actions.createFrame(
+      canvas.id,
+      {
+        name: item.name.slice(0, MAX_FRAME_NAME_LENGTH),
+        x: position.x,
+        y: position.y,
+        width: item.width,
+        height: item.height,
+        html: item.html,
+      },
+      actor,
+    )
+    if (frame) created.push(frame)
+  })
+
+  return created
+}
 
 export const figmaExtension: ServerExtension = {
   id: 'figma',
@@ -83,38 +113,7 @@ export const figmaExtension: ServerExtension = {
         }
 
         const actor = helpers.actorFrom(agent_name)
-        const rightmost = canvas.frames.reduce((right, frame) => Math.max(right, frame.x + frame.width), 0)
-        const startX = canvas.frames.length ? rightmost + 80 : 120
-        const columns = 3
-        let column = 0
-        let y = 120
-        let rowHeight = 0
-        const createdFrames: Frame[] = []
-
-        for (const item of importedList) {
-          const frame = actions.createFrame(
-            canvas.id,
-            {
-              name: item.name.slice(0, 80),
-              x: startX + column * (item.width + 80),
-              y,
-              width: item.width,
-              height: item.height,
-              html: item.html,
-            },
-            actor,
-          )
-          if (frame) {
-            createdFrames.push(frame)
-            rowHeight = Math.max(rowHeight, item.height)
-            column++
-            if (column === columns) {
-              column = 0
-              y += rowHeight + 80
-              rowHeight = 0
-            }
-          }
-        }
+        const createdFrames = landImportedFrames(canvas, importedList, actor)
 
         return helpers.text({
           success: true,
@@ -230,38 +229,7 @@ export const figmaExtension: ServerExtension = {
           clientId: typeof clientId === 'string' ? clientId.slice(0, 64) : undefined,
         })
 
-        const rightmost = canvas.frames.reduce((right, frame) => Math.max(right, frame.x + frame.width), 0)
-        const startX = canvas.frames.length ? rightmost + 80 : 120
-        const columns = 3
-        let column = 0
-        let y = 120
-        let rowHeight = 0
-        const createdFrames: Frame[] = []
-
-        for (const item of importedFrames) {
-          const frame = actions.createFrame(
-            canvas.id,
-            {
-              name: item.name.slice(0, 80),
-              x: startX + column * (item.width + 80),
-              y,
-              width: item.width,
-              height: item.height,
-              html: item.html,
-            },
-            actor,
-          )
-          if (frame) {
-            createdFrames.push(frame)
-            rowHeight = Math.max(rowHeight, item.height)
-            column++
-            if (column === columns) {
-              column = 0
-              y += rowHeight + 80
-              rowHeight = 0
-            }
-          }
-        }
+        const createdFrames = landImportedFrames(canvas, importedFrames, actor)
 
         res.json({ frames: createdFrames })
       } catch (error) {

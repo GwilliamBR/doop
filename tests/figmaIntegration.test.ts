@@ -31,7 +31,48 @@ beforeAll(async () => {
       return res.end('INVALID_NOT_AN_IMAGE')
     }
 
+    if (url.pathname === '/svg-download/arrow') {
+      res.setHeader('Content-Type', 'image/svg+xml')
+      res.writeHead(200)
+      return res.end('<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12"><path d="M0 0L12 6L0 12Z"/></svg>')
+    }
+
     res.setHeader('Content-Type', 'application/json')
+
+    if (url.pathname === '/v1/files/vectorFileKey/nodes' || url.pathname === '/v1/files/vectorNoExportKey/nodes') {
+      res.writeHead(200)
+      return res.end(
+        JSON.stringify({
+          name: 'Vector File',
+          nodes: {
+            '5:1': {
+              document: {
+                id: '5:1',
+                name: 'Keys',
+                type: 'FRAME',
+                absoluteBoundingBox: { x: 0, y: 0, width: 200, height: 100 },
+                children: [
+                  {
+                    id: '5:2',
+                    name: 'Arrow',
+                    type: 'VECTOR',
+                    absoluteBoundingBox: { x: 10, y: 10, width: 12, height: 12 },
+                    fills: [{ type: 'SOLID', color: { r: 0, g: 0, b: 0, a: 1 } }],
+                  },
+                ],
+              },
+            },
+          },
+        }),
+      )
+    }
+
+    if (url.pathname === '/v1/images/vectorFileKey') {
+      res.writeHead(200)
+      return res.end(
+        JSON.stringify({ err: null, images: { '5:2': `http://localhost:${figmaPort}/svg-download/arrow` } }),
+      )
+    }
 
     if (url.pathname === '/v1/me') {
       if (token === 'figd_rate_limited') {
@@ -517,7 +558,7 @@ describe('Figma canvas frame import', () => {
     expect(html).toContain('flex-direction: column;')
     expect(html).toContain('gap: 16px;')
     expect(html).toContain('Welcome to Doop')
-    expect(html).toContain('/api/assets/')
+    expect(html).toMatch(/url\('\/a\/[A-Za-z0-9_-]+\.png'\)/)
   })
 
   it('skips invalid remote image fills without creating corrupt assets', async () => {
@@ -533,7 +574,48 @@ describe('Figma canvas frame import', () => {
     expect(importData.frames).toHaveLength(1)
     const importedFrame = importData.frames[0]!
     expect(importedFrame.name).toBe('Corrupt Image Frame')
-    expect(importedFrame.html).not.toContain('/api/assets/')
+    expect(importedFrame.html).not.toContain('/a/')
+  })
+})
+
+/* its own user: imports are limited to five per minute per user */
+describe('Figma vector export', () => {
+  let vectorUser: Client
+  let canvasId: string
+
+  beforeAll(async () => {
+    vectorUser = await new Client(server).signUp('figma-vector@test.dev', 'Vector')
+    const createRes = await vectorUser.post('/api/canvases', { name: 'Vector Canvas' })
+    canvasId = ((await createRes.json()) as { id: string }).id
+    await vectorUser.post('/api/integrations/figma/token', { token: 'figd_valid_token_123' })
+  })
+
+  it('renders vector nodes through Figma SVG export and serves the stored file', async () => {
+    const importRes = await vectorUser.post(`/api/canvases/${canvasId}/figma/import`, {
+      url: 'https://www.figma.com/design/vectorFileKey/Vectors?node-id=5-1',
+      nodeIds: ['5:1'],
+    })
+    expect(importRes.status).toBe(200)
+
+    const importData = (await importRes.json()) as { frames: { html: string }[] }
+    const svgUrl = importData.frames[0]?.html.match(/<img src="(\/a\/[A-Za-z0-9_-]+\.svg)"/)?.[1]
+    expect(svgUrl).toBeDefined()
+
+    const served = await vectorUser.get(svgUrl!)
+    expect(served.status).toBe(200)
+    expect(await served.text()).toContain('<path')
+  })
+
+  it('still imports the frame when Figma cannot export vectors', async () => {
+    const importRes = await vectorUser.post(`/api/canvases/${canvasId}/figma/import`, {
+      url: 'https://www.figma.com/design/vectorNoExportKey/Vectors?node-id=5-1',
+      nodeIds: ['5:1'],
+    })
+    expect(importRes.status).toBe(200)
+
+    const importData = (await importRes.json()) as { frames: { name: string; html: string }[] }
+    expect(importData.frames[0]?.name).toBe('Keys')
+    expect(importData.frames[0]?.html).not.toContain('<img')
   })
 })
 

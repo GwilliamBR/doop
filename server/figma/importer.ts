@@ -1,7 +1,11 @@
 import { z } from 'zod'
 import { createAsset } from '../assets.ts'
 import { FigmaError, figmaFetch } from './client.ts'
-import { figmaNodeToHtml, type FigmaNode } from './html.ts'
+import { figmaNodeToHtml } from './html.ts'
+import type { FigmaNode } from './types.ts'
+import { findSvgExportIds, requestSvgExportUrls } from './vectors.ts'
+
+const DOWNLOAD_CONCURRENCY = 8
 
 export interface DiscoveredFrame {
   id: string
@@ -147,6 +151,46 @@ function collectImageRefs(node: FigmaNode, refs: Set<string>): void {
   }
 }
 
+/** Downloads a Figma-hosted file into Doop's asset storage and returns the URL frames should use. */
+async function storeRemoteAsset(
+  remoteUrl: string,
+  label: string,
+  canvasId?: string,
+  ownerId?: string,
+): Promise<string | undefined> {
+  try {
+    const downloadRes = await fetch(remoteUrl, { signal: AbortSignal.timeout(15_000) })
+    if (!downloadRes.ok) return undefined
+
+    const buf = Buffer.from(await downloadRes.arrayBuffer())
+    const asset = await createAsset(buf, { canvasId, ownerId, uploadedBy: 'Figma' })
+    return `/a/${asset.id}.${asset.ext}`
+  } catch (assetErr) {
+    console.warn(`[figma] Failed to download or create asset for ${label}:`, assetErr)
+    return undefined
+  }
+}
+
+async function storeAll(
+  remoteUrls: Record<string, string>,
+  canvasId?: string,
+  ownerId?: string,
+): Promise<Record<string, string>> {
+  const stored: Record<string, string> = {}
+  const entries = Object.entries(remoteUrls)
+
+  for (let start = 0; start < entries.length; start += DOWNLOAD_CONCURRENCY) {
+    const batch = entries.slice(start, start + DOWNLOAD_CONCURRENCY)
+    await Promise.all(
+      batch.map(async ([key, remoteUrl]) => {
+        const assetUrl = await storeRemoteAsset(remoteUrl, key, canvasId, ownerId)
+        if (assetUrl) stored[key] = assetUrl
+      }),
+    )
+  }
+  return stored
+}
+
 async function resolveFigmaImages(
   token: string,
   fileKey: string,
@@ -161,36 +205,38 @@ async function resolveFigmaImages(
 
   if (!imageRefs.size) return {}
 
-  const imageMap: Record<string, string> = {}
   try {
     const response = await figmaFetch(`/files/${fileKey}/images`, token, imagesResponseSchema)
-    const remoteUrls = response.meta.images
-
+    const wantedUrls: Record<string, string> = {}
     for (const ref of imageRefs) {
-      const remoteUrl = remoteUrls[ref]
-      if (!remoteUrl) continue
-
-      try {
-        const downloadRes = await fetch(remoteUrl, { signal: AbortSignal.timeout(15_000) })
-        if (!downloadRes.ok) continue
-
-        const arrayBuf = await downloadRes.arrayBuffer()
-        const buf = Buffer.from(arrayBuf)
-        const asset = await createAsset(buf, {
-          canvasId,
-          ownerId,
-          uploadedBy: 'Figma',
-        })
-        imageMap[ref] = `/api/assets/${asset.id}`
-      } catch (assetErr) {
-        console.warn(`[figma] Failed to download or create asset for image ${ref}:`, assetErr)
-      }
+      const remoteUrl = response.meta.images[ref]
+      if (remoteUrl) wantedUrls[ref] = remoteUrl
     }
+    return await storeAll(wantedUrls, canvasId, ownerId)
   } catch (err) {
     console.warn(`[figma] Could not fetch file images for ${fileKey}:`, err)
+    return {}
   }
+}
 
-  return imageMap
+/** Icons and vector shapes have no HTML equivalent, so Figma renders them to SVG and we store those. */
+async function resolveFigmaSvgExports(
+  token: string,
+  fileKey: string,
+  nodes: FigmaNode[],
+  canvasId?: string,
+  ownerId?: string,
+): Promise<Record<string, string>> {
+  const exportIds = findSvgExportIds(nodes)
+  if (!exportIds.length) return {}
+
+  try {
+    const remoteUrls = await requestSvgExportUrls(token, fileKey, exportIds)
+    return await storeAll(remoteUrls, canvasId, ownerId)
+  } catch (err) {
+    console.warn(`[figma] Could not export vectors for ${fileKey}:`, err)
+    return {}
+  }
 }
 
 export async function importFigmaNodes(
@@ -222,13 +268,16 @@ export async function importFigmaNodes(
     throw new FigmaError('None of the selected frames could be found in the Figma file.', 404)
   }
 
-  const imageMap = await resolveFigmaImages(token, fileKey, nodes, options.canvasId, options.ownerId)
+  const [imageMap, svgMap] = await Promise.all([
+    resolveFigmaImages(token, fileKey, nodes, options.canvasId, options.ownerId),
+    resolveFigmaSvgExports(token, fileKey, nodes, options.canvasId, options.ownerId),
+  ])
 
   return nodes.map((node) => {
     const box = node.absoluteBoundingBox
     const width = box ? Math.round(box.width) : 800
     const height = box ? Math.round(box.height) : 600
-    const html = figmaNodeToHtml(node, { imageMap, sourceUrl: options.sourceUrl })
+    const html = figmaNodeToHtml(node, { imageMap, svgMap, sourceUrl: options.sourceUrl })
 
     return {
       id: node.id,
