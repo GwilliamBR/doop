@@ -37,6 +37,14 @@ export async function figmaFetch<T>(endpoint: string, token: string, schema: z.Z
   }
 
   if (response.status === 401 || response.status === 403) {
+    const errorPayload = (await response.json().catch(() => null)) as { err?: unknown; message?: unknown } | null
+    const rawDetail = String(errorPayload?.err ?? errorPayload?.message ?? '')
+    if (/scope/i.test(rawDetail)) {
+      throw new FigmaError(
+        'This token is missing required permissions. Enable Current user (current_user:read) and File content (file_content:read) scopes in Figma.',
+        403,
+      )
+    }
     throw new FigmaError('Figma rejected this token. Verify the token and try again.', 401)
   }
 

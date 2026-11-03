@@ -141,8 +141,9 @@ export function FigmaSettingsCard({
             >
               <h3 className="text-copy font-semibold">Personal access token</h3>
               <p className="text-copy leading-relaxed text-ink-soft">
-                Create a personal access token in Figma under Settings → Personal access tokens with file read
-                permissions. The token is stored securely on the server.
+                Create a personal access token in Figma under Settings → Security &amp; Personal access tokens with
+                Current user (current_user:read) and File content (file_content:read) permissions. The token is stored
+                securely on the server.
               </p>
               <div className="flex gap-2">
                 <Input
@@ -412,7 +413,8 @@ export function FigmaImportSection({ canvasId, setReview, onImporting, onBack }:
         <ModalLede>Connect a Figma Personal Access Token to import frames onto this canvas.</ModalLede>
         <div className="mt-4 flex flex-col gap-3">
           <p className="text-copy text-ink-soft">
-            You can enter your token below or manage connections on the{' '}
+            Create a token in Figma under Settings → Security &amp; Personal access tokens with Current user
+            (current_user:read) and File content (file_content:read) permissions, or manage connections on the{' '}
             <a href="/integrations" className="text-ink underline underline-offset-2">
               Integrations page
             </a>

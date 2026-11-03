@@ -104,6 +104,9 @@ it('renders disconnected state and connects token', async () => {
 
   await act(async () => button('Connect').click())
   expect(document.querySelector('[role="dialog"]')).not.toBeNull()
+  expect(document.body.textContent).toContain('Settings → Security & Personal access tokens')
+  expect(document.body.textContent).toContain('Current user (current_user:read)')
+  expect(document.body.textContent).toContain('File content (file_content:read)')
   expect(input()).not.toBeNull()
 
   await act(async () => {

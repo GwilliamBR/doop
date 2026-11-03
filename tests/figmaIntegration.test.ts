@@ -38,6 +38,15 @@ beforeAll(async () => {
         res.writeHead(429)
         return res.end(JSON.stringify({ status: 429, err: 'Rate limit exceeded' }))
       }
+      if (token === 'figd_missing_scope') {
+        res.writeHead(403)
+        return res.end(
+          JSON.stringify({
+            status: 403,
+            err: 'Invalid scope(s): file_content:read. This endpoint requires the current_user:read scope.',
+          }),
+        )
+      }
       if (token === 'figd_valid_token_123') {
         res.writeHead(200)
         return res.end(
@@ -297,6 +306,23 @@ describe('Figma integration connection lifecycle', () => {
       token: 'figd_invalid_key_999',
     })
     expect(failedConnectResponse.status).toBe(401)
+
+    const statusPreserved = await getFigmaStatus(owner)
+    expect(statusPreserved).toMatchObject({
+      connected: true,
+      accountName: 'design_lead (designer@example.com)',
+    })
+  })
+
+  it('returns a clear scope error when token lacks required permissions and preserves existing connection', async () => {
+    const missingScopeResponse = await owner.post('/api/integrations/figma/token', {
+      token: 'figd_missing_scope',
+    })
+    expect(missingScopeResponse.status).toBe(403)
+    expect(await missingScopeResponse.json()).toEqual({
+      error:
+        'This token is missing required permissions. Enable Current user (current_user:read) and File content (file_content:read) scopes in Figma.',
+    })
 
     const statusPreserved = await getFigmaStatus(owner)
     expect(statusPreserved).toMatchObject({
