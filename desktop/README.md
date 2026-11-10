@@ -5,9 +5,22 @@ A thin [Tauri](https://tauri.app) shell around the hosted app. It loads
 every deploy is instantly "in" the desktop app and the binary only
 needs a new release when the shell itself changes (icon, menu, Tauri bump).
 
-The released installers (macOS DMG and Windows NSIS setup) talk to the hosted
-service at doop.design. Self-hosting your own doop instance? Build a shell for
-it without patching anything:
+The released installers (macOS DMG, Windows NSIS setup, and the Linux AppImage,
+.deb and .rpm) talk to the hosted
+service at doop.design. Self-hosting your own doop instance? The cog on the
+sign-in screen points the same app at it: the shell checks that the address
+answers as a Doop server (`/api/locale-config`, following redirects to where
+the pages really load; https only, plain http only on this computer), asks for confirmation in a
+native dialog (the server gets the app's IPC, Claude Code included), saves it
+as `server.json` in the app's data directory and restarts onto it
+(`src-tauri/src/server.rs`). The server gets `capabilities/default.json` for
+its own origin at runtime. If a chosen server does not answer at launch, a
+native dialog offers Try Again or Use doop.design (on every platform), and on
+macOS the app menu has "Use doop.design…" while one is chosen. Shells advertise this with
+`__DOOP_SERVER_CHOOSE__`. Debug builds keep their pick in `server-dev.json`.
+
+You can also build a shell that opens your instance by default, without
+patching anything:
 
 ```sh
 DOOP_APP_URL=https://doop.example.com bun run build
@@ -32,20 +45,43 @@ When a deploy ships a new client bundle, long-running windows get a
 "doop was updated — Reload" toast on WebSocket reconnect (see `serverBuild`
 in the `init` message).
 
-## Check for updates
+## Updates
 
-On macOS, **doop → Check for Updates…** compares the installed shell version
-with the stable universal DMG published at `https://doop.design/download/mac`.
-The check runs in the background and shows a native result dialog; when an
-update is available, **Download Update** opens the installer in the browser.
-Open the downloaded DMG and drag doop into Applications to replace the old app.
-Checks do not install updates automatically. Custom `DOOP_APP_URL` builds
-instead explain that an updated build must come from their provider.
+Official release builds update themselves through `tauri-plugin-updater`
+(`src-tauri/src/updates.rs`). Fifteen seconds after launch and then once a day
+the shell reads `https://doop.design/desktop/latest.json`, downloads a newer
+version in the background and asks to restart into it. **Later** keeps the
+download: macOS installs it when the app quits, Windows and Linux ask again at
+the next check. On macOS, **doop → Check for Updates…** runs the same check on demand
+and also reports "up to date" and failures; Windows and Linux have no menu bar and rely
+on the scheduled checks. Debug builds and custom `DOOP_APP_URL` builds never
+update (replacing a self-hosted shell with the official one would change its
+server).
 
-The check reads the download route’s redirect to
-`https://github.com/kgoedecke/doop/releases/download/desktop-vX.Y.Z/doop_X.Y.Z_universal.dmg`
-without downloading the installer. Keep that route current when publishing
-releases; a missing or unexpected redirect is shown as a failed check.
+The feed and its packages are produced by `desktop-release.yml`:
+
+- Both builds pass `scripts/updater-config.sh`'s override, which turns on
+  `createUpdaterArtifacts` when the `TAURI_SIGNING_PRIVATE_KEY` /
+  `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` secrets are set: macOS adds a signed
+  `doop.app.tar.gz`, Windows signs the NSIS installer itself (`.exe.sig`) and
+  Linux signs the AppImage, .deb and .rpm (`.sig` next to each). An installed
+  Linux app updates in the format it was installed from: an AppImage rewrites
+  itself, a .deb or .rpm reinstalls through `pkexec`. A
+  `desktop-v*` tag fails without the key; other builds skip the packages.
+- The release job renames the macOS package to `doop_X.Y.Z_universal.app.tar.gz`,
+  writes `latest.json` (the platform entries point at the tag's assets),
+  attaches everything to the release and then copies `latest.json` onto the
+  fixed `desktop-updates` prerelease (never mark it latest, never delete it).
+- `doop.design/desktop/latest.json` redirects there (the hosted deployment serves it),
+  so the feed can move without shipping a new shell.
+
+The key's public half is `plugins.updater.pubkey` in `tauri.conf.json`; the
+plugin refuses any package that does not verify against it. Losing the private
+key means no installed app can be updated again without a manual reinstall, so
+it is backed up with the Apple signing material. Shells released before the
+updater (0.9.x and older) have none: their Check for Updates… reads the DMG
+redirect at `https://doop.design/download/mac`, so keep that route current
+too.
 
 ## Develop
 
@@ -57,6 +93,20 @@ bun run dev    # opens the shell against the local vite server (localhost:4300)
 ```
 
 `bun run dev` expects the dev server in the repo root to be running.
+
+On Linux, also install the WebKitGTK build dependencies from
+[Tauri's prerequisites](https://v2.tauri.app/start/prerequisites/#linux), e.g. on
+Debian/Ubuntu:
+
+```sh
+sudo apt install libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libssl-dev libxdo-dev patchelf file
+```
+
+or on Fedora:
+
+```sh
+sudo dnf install webkit2gtk4.1-devel libappindicator-gtk3-devel librsvg2-devel openssl-devel libxdo-devel
+```
 
 ## Add to Claude
 
@@ -107,6 +157,19 @@ macOS and Windows app with a website handoff, approve Doop's OAuth in Codex, and
 a fresh chat. WSL installation remains a manual CLI path.
 
 Reference: [OpenAI's MCP configuration docs](https://learn.chatgpt.com/docs/extend/mcp?surface=cli).
+
+## Fonts from this computer
+
+Settings → Fonts and Workspace → Fonts show **Add from this computer** in shells that set the
+`__DOOP_LOCAL_FONTS__` marker. `fonts_choose_local` opens the native file panel in the
+platform's fonts folder (`~/Library/Fonts` then `/Library/Fonts` on macOS, the per-user
+`Microsoft\Windows\Fonts` then `C:\Windows\Fonts`, `~/.local/share/fonts` and friends on Linux)
+and remembers the picked paths; `fonts_read_local` returns one picked file's bytes, once, and
+refuses any path the panel did not hand out. The page then uploads the file through the ordinary
+font upload, so the font joins the library like a dropped file and renders for every viewer and in
+every export. Collections (`.ttc`, `.dfont`) and files over 10 MB are skipped by name. The page
+shows a licence notice before the upload; the shell checks no licences and never reads a font
+file the person did not pick.
 
 ## Local Claude CLI
 
@@ -167,23 +230,111 @@ policy; an existing CLI login is not a promise of unlimited usage.
 ## Build
 
 ```sh
-bun run build  # macOS: .app + .dmg; Windows: NSIS .exe in src-tauri/target/release/bundle/
+bun run build  # macOS: .app + .dmg; Windows: NSIS .exe; Linux: AppImage, .deb, .rpm (in src-tauri/target/release/bundle/)
 ```
 
-CI (`.github/workflows/desktop.yml`) builds an unsigned macOS .app and Windows
-NSIS installer on every PR that touches `desktop/`, on pushes to `main` (to
+On Linux, finish the AppImage with
+`bash scripts/appimage-drop-wayland.sh src-tauri/target/release/bundle/appimage/*.AppImage`,
+as CI does: it repacks the AppImage without the `libwayland-*` copied from the build
+machine, which are older than the Mesa on current distros and make WebKitGTK abort
+with `EGL_BAD_PARAMETER` (an empty window).
+
+An AppImage started from a download folder has no installed `.desktop` file, so
+GNOME and KDE would show its window as "doop-desktop" with a generic icon. On
+launch it writes `~/.local/share/applications/doop-desktop-appimage.desktop`
+(pointing at the AppImage, rewritten when it moves) and the icon into the app's
+data dir (`src-tauri/src/appimage.rs`); the .deb and .rpm install their own
+`doop-desktop.desktop` and remove the AppImage's entry when they launch.
+
+## Chromium shell (the macOS app)
+
+`src-tauri-chromium/` builds the same shell on Chromium instead of the system
+WebKit, through Tauri 3's CEF runtime (`tauri-runtime-cef`). The canvas runs
+every frame in a sandboxed iframe: WKWebView renders all of them in the
+editor's process, Chromium in a renderer process of their own, which is the
+difference between ~14 and ~58 fps when panning a 49-frame canvas (headless
+WebKit and Chromium under Playwright). On macOS it is the app that ships;
+Windows and Linux stay on the WebKit build in `src-tauri/`.
+
+There is no second copy of the code: the crate's `[[bin]]` and build script
+are `src-tauri/src/main.rs` and `src-tauri/build.rs`, and it reads the
+capabilities and icons from `src-tauri/`. Linking `tauri-runtime-cef` makes
+`build.rs` set `cfg(chromium)`, which picks the CEF runtime in `main()`.
+Everything else (menus, View-menu events, downloads, deep links, the desktop
+markers, the Claude / Codex / fonts commands, self-update) is shared.
+
+```sh
+brew install cmake ninja   # cef-dll-sys builds CEF's C++ wrapper
+bun run dev:chromium       # against localhost:4300
+bun run build:chromium     # src-tauri-chromium/target/release/bundle/{macos,dmg}
+```
+
+The first build downloads the CEF binary distribution (Chromium 154, about
+300 MB) into `~/Library/Caches/tauri-cef`. Both scripts run the Tauri 3 CLI
+(`@tauri-apps/cli@3.0.0-alpha.5`), which compiles the five helper apps and
+puts them, with `Chromium Embedded Framework.framework`, in
+`Contents/Frameworks`; `tauri dev` runs from that bundle too, since CEF finds
+its helpers by bundle path. Without `--target` the build is for the machine's
+own architecture. The CLI cannot bundle CEF universal (it ships one
+architecture's framework), so the release runs `scripts/macos-universal.sh`:
+both architectures built unsigned, merged with `@electron/universal`
+(`scripts/universal-app.mjs`), then signed with the CEF entitlements,
+notarized and packed (`brew install create-dmg` to run it locally).
+
+### Replacing the WebKit app
+
+The Chromium app is `doop` (`design.doop.desktop`) with the executable
+`doop-desktop`, exactly as the WebKit app was: the updater swaps the bundle in
+place and relaunches it by the old executable's path, and macOS keeps the
+app's permissions and keychain items. Chromium keeps its profile in
+`~/Library/Application Support/design.doop.desktop/cef` (debug builds use
+`cef-dev`, since they encrypt cookies with a mock keychain).
+
+On its first launch the app opens hidden on the app origin's `/favicon.ico`
+and moves the WebKit app's storage over (`src/webkit_migration.rs`): the
+cookies for the app's host from the shared WKWebsiteDataStore, and the
+origin's localStorage, read by a hidden WKWebView at that origin. The cookies
+go straight into the webview's Chromium cookie manager with their expiry and
+SameSite (Tauri's `set_cookie` drops both, and Chromium forgets a cookie
+without an expiry on restart) and are flushed to disk; the page gets the
+entries, and the window shows itself as the app loads. A `webkit-migrated` marker in the profile it filled makes it
+run once (a debug build's `cef-dev` has its own); nothing is written to the
+WebKit store, so a rollback to a WebKit build starts from it as it was. A
+read that fails or takes over five seconds only means signing in again, and a
+landing page that does not load within fifteen (offline) opens the app
+without migrating and leaves the next launch to try again.
+
+To test it on a machine with the WebKit app installed: quit the WebKit app
+(both share the bundle id, so a running one takes the launch over), build
+the Chromium app against the same server, and launch it. Delete
+`~/Library/Application Support/design.doop.desktop/cef` (`cef-dev` for a
+debug build) to run the migration again.
+
+`DOOP_CEF_DEBUG_PORT=9333 bun run dev:chromium` opens Chrome's remote
+debugging on that port in a debug build (never in a release), for
+`chrome://inspect` or a CDP client such as Playwright's `connectOverCDP`.
+
+Keep the shared dependencies in `src-tauri-chromium/Cargo.toml` in step with
+`src-tauri/Cargo.toml`. Code that names a runtime type uses `ShellRuntime`
+(`tauri::Wry` on Tauri 2, `tauri::DynRuntime` on Tauri 3), and
+`cargo build` in both directories is the check that a change still compiles
+on both.
+
+CI (`.github/workflows/desktop.yml`) builds an unsigned macOS .app (the Chromium crate), a Windows
+NSIS installer and the Linux packages on every PR that touches `desktop/`, on pushes to `main` (to
 keep the Rust build cache warm), and on manual dispatch. The toolchain setup
 shared by every desktop job lives in `.github/actions/setup-desktop`.
 
 ## Releasing Desktop Installers
 
 `.github/workflows/desktop-release.yml` builds a universal (Apple Silicon +
-Intel) DMG for macOS and an NSIS installer for Windows:
+Intel) DMG for macOS, an NSIS installer for Windows and an AppImage, .deb and
+.rpm for x64 Linux:
 
-- push a tag `desktop-v*` → both installers attached to a GitHub Release. The
-  release is created only after both builds succeed, so a tag never ships
-  with one installer missing.
-- manual dispatch → DMG and Windows installer as workflow artifacts
+- push a tag `desktop-v*` → every installer attached to a GitHub Release. The
+  release is created only after all three builds succeed, so a tag never ships
+  with an installer missing.
+- manual dispatch → the installers as workflow artifacts
 
 Versions are bumped by release-please: commits touching `desktop/` open a
 "chore(desktop): release x.y.z" PR that updates `package.json`,

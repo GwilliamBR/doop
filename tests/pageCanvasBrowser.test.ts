@@ -1,7 +1,7 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import type { Page } from 'puppeteer-core'
 import { findBrowserPath } from '../server/screenshot'
-import { fixtureUrl, openBrowser, type TestBrowser } from './browser'
+import { fixtureUrl, pagePerTest } from './browser'
 import type { Canvas, Frame } from '../shared/types'
 
 declare global {
@@ -9,6 +9,7 @@ declare global {
     seedPages: (canvas: Canvas) => void
     pickElement: (frameId: string, selector: string) => void
     frameHtml: (frameId: string) => string | undefined
+    trace: unknown[]
     pageState: () => {
       activePageId: string
       viewport: { x: number; y: number; zoom: number }
@@ -49,18 +50,25 @@ const canvas = (frames: Frame[]): Canvas => ({
 /* Each test loads the whole app (hundreds of unbundled modules) in its own body,
    which on a busy CI runner can take longer than the 5 s default test timeout. */
 describe.skipIf(!findBrowserPath())('page camera and snapping', { timeout: 30_000 }, () => {
-  let browser: TestBrowser
+  const pages = pagePerTest({ permissions: ['clipboard-read', 'clipboard-sanitized-write'] })
   let page: Page
-  beforeAll(async () => {
-    browser = await openBrowser()
-    await browser.grantPermissions(['clipboard-read', 'clipboard-sanitized-write'])
-    page = await browser.newPage()
+  beforeEach(async () => {
+    page = await pages.open()
     await page.setViewport({ width: 1200, height: 800 })
-  }, 60_000)
-  afterAll(async () => {
-    await page?.close()
-    await browser?.close()
   })
+
+  /* a page-state wait that, when it never comes true, says what the page did */
+  async function waitState(label: string, check: () => boolean) {
+    try {
+      await page.waitForFunction(check)
+    } catch (error) {
+      const trace = await page.evaluate(() => window.trace).catch(() => 'unavailable')
+      const state = await page.evaluate(() => window.pageState()).catch(() => 'unavailable')
+      throw new Error(`${label}: ${String(error)}\nstate ${JSON.stringify(state)}\ntrace ${JSON.stringify(trace)}`, {
+        cause: error,
+      })
+    }
+  }
 
   async function load(data: Canvas, query = '') {
     await page.goto(fixtureUrl(`pages.html${query}`))
@@ -232,20 +240,20 @@ describe.skipIf(!findBrowserPath())('page camera and snapping', { timeout: 30_00
       html: '<h1 id="one" data-doop-id="one000">One</h1><h2 id="two" data-doop-id="two000">Two</h2>',
     }
     await load(canvas([target]), '?frame=target&element=one000')
-    await page.waitForFunction(() => window.pageState().selectedElement?.selector === '#one')
+    await waitState('first link', () => window.pageState().selectedElement?.selector === '#one')
     await page.evaluate(() => {
       history.pushState(null, '', '?frame=target&element=two000')
       window.dispatchEvent(new PopStateEvent('popstate'))
     })
-    await page.waitForFunction(() => window.pageState().selectedElement?.selector === '#two')
+    await waitState('second link', () => window.pageState().selectedElement?.selector === '#two')
     await page.waitForSelector('button[aria-label="Copy link to element"]')
     await page.evaluate(() => history.back())
-    await page.waitForFunction(() => window.pageState().selectedElement?.selector === '#one')
+    await waitState('back to the first link', () => window.pageState().selectedElement?.selector === '#one')
     await page.evaluate(() => {
       history.pushState(null, '', '?frame=target')
       window.dispatchEvent(new PopStateEvent('popstate'))
     })
-    await page.waitForFunction(() => window.pageState().inspectorOpen && !window.pageState().selectedElement)
+    await waitState('frame-only link', () => window.pageState().inspectorOpen && !window.pageState().selectedElement)
     await page.waitForSelector('button[aria-label="Copy link to element"]', { hidden: true })
   })
 

@@ -2,6 +2,7 @@ import * as React from 'react'
 import { cva, type VariantProps } from 'class-variance-authority'
 
 import { cn } from '@/lib/utils'
+import { useT } from '@/lib/i18n'
 import * as TabsPrimitive from '@radix-ui/react-tabs'
 
 import { Button } from './button'
@@ -17,12 +18,20 @@ const panelVariants = cva('flex min-w-0 flex-col overflow-hidden bg-surface', {
   variants: {
     surface: {
       floating: 'pointer-events-auto absolute z-[35] rounded-[14px] shadow-float',
+      /* a column flush with the window's edge and the bar above it, the
+         canvas beside it (Settings → Appearance → Canvas panels); the
+         caller says which side takes the hairline */
+      docked: 'pointer-events-auto absolute inset-y-0 z-[35] rounded-none border-line-soft shadow-none',
       /* filling a Sheet: no chrome of its own, the sheet provides it */
       inline: 'h-full w-full rounded-none border-0 shadow-none',
     },
   },
   defaultVariants: { surface: 'floating' },
 })
+
+/** where a canvas panel lives: over the board, docked to its edge, or
+ *  filling a phone's sheet */
+export type PanelSurface = NonNullable<VariantProps<typeof panelVariants>['surface']>
 
 export interface PanelResize {
   label: string
@@ -238,16 +247,18 @@ function PanelDisclosure({ className, ...props }: React.ComponentProps<typeof Co
  *  baseline and never centres in the button, the icon does. */
 function PanelClose({
   className,
-  label = 'Close',
+  label,
   children: _children,
   ...props
 }: React.ComponentProps<'button'> & { label?: string }) {
+  const t = useT()
+  const text = label ?? t('common.close')
   return (
-    <Tooltip label={label} side="bottom" align="end">
+    <Tooltip label={text} side="bottom" align="end">
       <Button
         variant="bare"
         size="icon-sm"
-        aria-label={label}
+        aria-label={text}
         className={cn('size-7 shrink-0 rounded-[7px] text-ink-faint hover:bg-paper-deep hover:text-ink', className)}
         {...props}
       >

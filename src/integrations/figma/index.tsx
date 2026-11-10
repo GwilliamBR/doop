@@ -141,8 +141,9 @@ export function FigmaSettingsCard({
             >
               <h3 className="text-copy font-semibold">Personal access token</h3>
               <p className="text-copy leading-relaxed text-ink-soft">
-                Create a personal access token in Figma under Settings → Security with Users (current_user:read) and
-                Files (file_content:read) scopes. The token is stored securely on the server.
+                Create a personal access token in Figma under Settings → Security & Personal access tokens with Current
+                user (current_user:read) and File content (file_content:read) permissions. The token is stored securely
+                on the server.
               </p>
               <div className="flex gap-2">
                 <Input
@@ -412,8 +413,8 @@ export function FigmaImportSection({ canvasId, setReview, onImporting, onBack }:
         <ModalLede>Connect a Figma Personal Access Token to import frames onto this canvas.</ModalLede>
         <div className="mt-4 flex flex-col gap-3">
           <p className="text-copy text-ink-soft">
-            Create a token in Figma under Settings → Security with Users (current_user:read) and Files
-            (file_content:read) scopes, or manage connections on the{' '}
+            Create a token in Figma under Settings → Security & Personal access tokens with Current user
+            (current_user:read) and File content (file_content:read) permissions, or manage connections on the{' '}
             <a href="/integrations" className="text-ink underline underline-offset-2">
               Integrations page
             </a>
@@ -516,5 +517,5 @@ export const figmaIntegration: ClientIntegration = {
   ImportSection: FigmaImportSection,
   isConnected: (status) => statusOf(status).connected,
   disconnect: () => req<IntegrationsStatus>('/api/integrations/figma', { method: 'DELETE' }),
-  disconnectCopy: 'Disconnect Figma and remove access to your files. Existing frames imported onto canvases stay.',
+  disconnectCopy: 'automations.figmaDisconnectCopy',
 }

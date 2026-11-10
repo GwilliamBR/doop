@@ -21,6 +21,7 @@ import { AutomationEditor } from './pages/AutomationEditor'
 import { Integrations } from './pages/Integrations'
 import { Workspace } from './pages/Workspace'
 import { authClient } from './lib/auth'
+import { useStore } from './lib/store'
 import { setName } from './lib/identity'
 import { posthog, setSupportWidgetVisible, syncReplayForUser, suspendAnalyticsWhileImpersonating } from './lib/posthog'
 import { useMe } from './lib/me'
@@ -31,6 +32,7 @@ import { DesktopTabs, ShellDragBar } from './components/DesktopTabs'
 import { setTabsUser } from './lib/desktop'
 import { isDesktopShell } from './lib/shell'
 import { SIGNUP_PARAM, parseSignupMethod } from '../shared/firstCanvas'
+import { useT } from './lib/i18n'
 
 export { navigate }
 
@@ -51,6 +53,9 @@ export function App() {
   const [route, setRoute] = useState(location.pathname + location.search)
   const path = route.split('?')[0]!
   const { data: session, isPending } = authClient.useSession()
+  /* a signed-out guest on a share link asked for the sign-in form */
+  const [guestAuth, setGuestAuth] = useState<'signin' | 'signup' | null>(null)
+  const signInRequired = useStore((s) => s.signInRequired)
   const me = useMe(session?.user.id)
   const identifiedUserId = useRef<string | null>(null)
 
@@ -154,6 +159,24 @@ export function App() {
       </>
     )
 
+  /* signed out on a canvas link: the canvas itself, read-only, as long as
+     the owner shared it by link (server: guestCanvasRole); a private one
+     refuses the join and lands on the sign-in form below. The prototype
+     player stays behind sign-in. */
+  if (!session && canvasId && !path.includes('/proto') && !signInRequired && !guestAuth)
+    return (
+      <>
+        <ShellDragBar />
+        <CanvasPage
+          canvasId={canvasId}
+          key={canvasId}
+          guest
+          onSignUp={() => setGuestAuth('signup')}
+          onSignIn={() => setGuestAuth('signin')}
+        />
+      </>
+    )
+
   /* signed out: every path lands on the sign-in form. The marketing site is
      a separate service (see server/marketing.ts) that owns `/` for
      visitors; share links (/c/…) and interrupted MCP OAuth redirects keep
@@ -162,7 +185,7 @@ export function App() {
     return (
       <>
         <ShellDragBar />
-        <AuthPage />
+        <AuthPage initialMode={guestAuth ?? undefined} />
       </>
     )
 
@@ -226,11 +249,12 @@ export function App() {
 }
 
 function ImpersonationBanner({ name }: { name: string }) {
+  const t = useT()
   const [leaving, setLeaving] = useState(false)
   return (
     <div className="fixed inset-x-0 top-0 z-[900] flex min-h-14 items-center justify-between gap-2 border-b border-accent-ink px-2.5 py-[7px] text-[11.5px] leading-tight text-accent-ink backdrop-blur-[6px] [background:repeating-linear-gradient(-45deg,rgba(208,52,31,0.16)_0_10px,rgba(208,52,31,0.08)_10px_20px)] sm:h-10 sm:min-h-0 sm:justify-center sm:gap-4 sm:text-[13px]">
       <span>
-        Viewing as <strong>{name}</strong> — read only, expires after 15 minutes.
+        {t('auth.viewingAsBefore')} <strong>{name}</strong> {t('auth.viewingAsAfter')}
       </span>
       <Button
         variant="ghost"
@@ -246,7 +270,7 @@ function ImpersonationBanner({ name }: { name: string }) {
             .catch(() => location.assign('/'))
         }}
       >
-        {leaving ? 'Leaving…' : 'Stop viewing'}
+        {leaving ? t('auth.leaving') : t('auth.stopViewing')}
       </Button>
     </div>
   )

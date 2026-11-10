@@ -2,6 +2,7 @@ import * as React from 'react'
 import { cva, type VariantProps } from 'class-variance-authority'
 
 import { cn } from '@/lib/utils'
+import { useT } from '@/lib/i18n'
 
 import { CheckIcon } from './icons'
 
@@ -11,7 +12,7 @@ import { CheckIcon } from './icons'
 const codeBlockVariants = cva('relative rounded-[10px] bg-code font-mono text-code-ink', {
   variants: {
     density: {
-      default: 'py-[13px] pl-3.5 pr-11 text-xs leading-[1.55] whitespace-pre-wrap break-all',
+      default: 'py-[13px] pl-3.5 pr-16 text-xs leading-[1.55] whitespace-pre-wrap break-all',
       rail: 'overflow-hidden text-ellipsis whitespace-nowrap py-2 pl-[9px] pr-[46px] text-[10.5px] leading-[1.55]',
     },
   },
@@ -25,12 +26,13 @@ function CodeBlock({
   ...props
 }: Omit<React.ComponentProps<'div'>, 'children'> & VariantProps<typeof codeBlockVariants> & { text: string }) {
   const [copied, setCopied] = React.useState(false)
+  const t = useT()
   return (
     <div data-slot="code-block" className={cn(codeBlockVariants({ density, className }))} {...props}>
       {text}
       <button
         type="button"
-        aria-label={copied ? 'Copied' : 'Copy'}
+        aria-label={copied ? t('common.copied') : t('common.copy')}
         className={cn(
           'absolute rounded-[6px] bg-white/[0.08] px-2 py-1 text-caption/3.5 text-code-ink transition-colors hover:bg-white/[0.18]',
           density === 'rail' ? 'right-[5px] top-[5px]' : 'right-2 top-2',
@@ -42,7 +44,7 @@ function CodeBlock({
           }, console.error)
         }}
       >
-        {copied ? <CheckIcon size={12} /> : 'copy'}
+        {copied ? <CheckIcon size={12} /> : t('ui.copyCode')}
       </button>
     </div>
   )

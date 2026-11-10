@@ -1,5 +1,44 @@
 # Changelog
 
+## [0.13.0](https://github.com/kgoedecke/doop/compare/desktop-v0.12.0...desktop-v0.13.0) (2026-11-08)
+
+
+### Features
+
+* **desktop:** offer downloaded updates in an in-app card ([#297](https://github.com/kgoedecke/doop/issues/297)) ([c089fd6](https://github.com/kgoedecke/doop/commit/c089fd61b4bb2bc2cfb013c2f950050010d60b05))
+* **desktop:** ship the macOS app on Chromium (CEF), replacing the WebKit app in place ([#423](https://github.com/kgoedecke/doop/issues/423)) ([ddea86b](https://github.com/kgoedecke/doop/commit/ddea86b528b585246000ca1b9cae8ce16635afcd))
+
+
+### Bug Fixes
+
+* **desktop:** give up on a stalled update download ([#430](https://github.com/kgoedecke/doop/issues/430)) ([0b1c1e1](https://github.com/kgoedecke/doop/commit/0b1c1e11becdf299df9a3edeebdb553f6c9748cb))
+
+## [0.12.0](https://github.com/kgoedecke/doop/compare/desktop-v0.11.0...desktop-v0.12.0) (2026-11-04)
+
+
+### Features
+
+* **fonts:** hosted fonts in the Design panel, and fonts from this computer on the desktop ([#352](https://github.com/kgoedecke/doop/issues/352)) ([fcbdb5f](https://github.com/kgoedecke/doop/commit/fcbdb5fef89610246b3cb4f1f68177e972f9fb0e))
+
+
+### Bug Fixes
+
+* **sync:** preserve OSS migrations and complete shared font support ([7148e73](https://github.com/kgoedecke/doop/commit/7148e73675aa8eaa036987d932674a32962a8049))
+
+## [0.11.0](https://github.com/kgoedecke/doop/compare/desktop-v0.10.0...desktop-v0.11.0) (2026-11-01)
+
+
+### Features
+
+* **desktop:** build and release the app for Linux ([#295](https://github.com/kgoedecke/doop/issues/295)) ([56d1174](https://github.com/kgoedecke/doop/commit/56d1174ca3214dcb263c2a0cb7fa76a961fa3331))
+
+## [0.10.0](https://github.com/kgoedecke/doop/compare/desktop-v0.9.0...desktop-v0.10.0) (2026-10-31)
+
+
+### Features
+
+* **desktop:** update the app automatically from a signed feed ([#285](https://github.com/kgoedecke/doop/issues/285)) ([3298742](https://github.com/kgoedecke/doop/commit/329874207677d7cf4790b3231aab46fc7f9462e7))
+
 ## [0.9.0](https://github.com/kgoedecke/doop/compare/desktop-v0.8.0...desktop-v0.9.0) (2026-10-31)
 
 

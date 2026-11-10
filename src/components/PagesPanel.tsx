@@ -10,6 +10,7 @@ import { PageIcon, PlusIcon } from './ui/icons'
 import { cn } from '../lib/utils'
 import { ContextMenu, ContextMenuTrigger, ContextMenuContent, ContextMenuItem } from './ui/context-menu'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select'
+import { useT } from '@/lib/i18n'
 
 /** The small grey sub-heading over a section of the Layers panel, shared with
  *  its "Layers" row: the two must read as one family (a browser test checks
@@ -26,10 +27,16 @@ export function PagesPanel({ fill = false }: { fill?: boolean }) {
   const [busy, setBusy] = useState(false)
   const [renaming, setRenaming] = useState<string | null>(null)
   const [name, setName] = useState('')
+  /* set once Enter, Esc or a blur has settled the rename, so the blur that
+     follows (the field unmounting, or being disabled while it saves) does
+     not settle it a second time */
+  const renameSettled = useRef(false)
+  const saveQueue = useRef<Promise<unknown>>(Promise.resolve())
   const [drag, setDrag] = useState<{ id: string; targetId: string | null; after: boolean } | null>(null)
   const didDrag = useRef(false)
   const stopDrag = useRef<(() => void) | null>(null)
   useEffect(() => () => stopDrag.current?.(), [])
+  const t = useT()
   if (!canvas) return null
   const pages = canvasPages(canvas)
   const movableIds = canvas.frames.filter((f) => selectedIds.includes(f.id) && !f.locked).map((f) => f.id)
@@ -40,30 +47,62 @@ export function PagesPanel({ fill = false }: { fill?: boolean }) {
     try {
       await moveFramesToPage(canvas, movableIds, pageId)
     } catch {
-      if (useStore.getState().canvas?.id === canvas.id)
-        useStore.getState().pushNotice('Could not move all selected frames to the page')
+      if (useStore.getState().canvas?.id === canvas.id) useStore.getState().pushNotice(t('panels.pagesMoveFailed'))
     } finally {
       setBusy(false)
     }
   }
 
-  async function save(next: CanvasPageInfo[], selectId?: string) {
-    if (!canvas || busy) return
-    setBusy(true)
-    try {
-      await savePages(canvas, next, selectId)
-      if (useStore.getState().canvas?.id !== canvas.id) return
-      setRenaming(null)
-    } catch (error) {
-      if (useStore.getState().canvas?.id !== canvas.id) return
-      useStore
-        .getState()
-        .pushNotice(
-          error instanceof ApiError && typeof error.body.error === 'string' ? error.body.error : 'Could not save pages',
-        )
-    } finally {
-      setBusy(false)
-    }
+  /** Page-list edits run one after another, each built from the pages as the
+   *  previous one left them: a rename committed by the press that starts a
+   *  drag must not race the reorder that drag drops. Resolves to whether the
+   *  edit saved. */
+  function save(edit: (pages: CanvasPageInfo[]) => CanvasPageInfo[] | null, selectId?: string) {
+    const canvasId = canvas?.id
+    const task = saveQueue.current.then(async () => {
+      const current = useStore.getState().canvas
+      if (!current || current.id !== canvasId) return false
+      const next = edit(canvasPages(current))
+      if (!next) return false
+      setBusy(true)
+      try {
+        await savePages(current, next, selectId)
+        return true
+      } catch (error) {
+        if (useStore.getState().canvas?.id === canvasId) {
+          useStore
+            .getState()
+            .pushNotice(
+              error instanceof ApiError && typeof error.body.error === 'string'
+                ? error.body.error
+                : t('panels.pagesSaveFailed'),
+            )
+        }
+        return false
+      } finally {
+        setBusy(false)
+      }
+    })
+    saveQueue.current = task.then(() => undefined)
+    return task
+  }
+
+  function startRename(page: CanvasPageInfo) {
+    renameSettled.current = false
+    setRenaming(page.id)
+    setName(page.name)
+  }
+
+  /** Enter or a click elsewhere keeps the typed name, as in Figma; an empty or
+   *  unchanged one just closes the field. A failed save leaves it open. */
+  async function commitRename(page: CanvasPageInfo) {
+    if (renameSettled.current) return
+    renameSettled.current = true
+    const next = name.trim()
+    if (!next || next === page.name) return setRenaming(null)
+    const saved = await save((current) => current.map((p) => (p.id === page.id ? { ...p, name: next } : p)))
+    if (saved) setRenaming(null)
+    else renameSettled.current = false
   }
 
   function startDrag(e: ReactPointerEvent<HTMLButtonElement>, id: string) {
@@ -102,36 +141,44 @@ export function PagesPanel({ fill = false }: { fill?: boolean }) {
         if (event.pointerId !== pointerId) return
         cleanup()
         if (!moving || !drop) return
-        const next = pages.filter((page) => page.id !== id)
-        const position = next.findIndex((page) => page.id === drop!.targetId) + (drop.after ? 1 : 0)
-        const page = pages.find((page) => page.id === id)
-        if (page && position >= 0) {
-          next.splice(position, 0, page)
-          void save(next)
-        }
+        const { targetId, after } = drop
+        void save((current) => {
+          const page = current.find((p) => p.id === id)
+          const next = current.filter((p) => p.id !== id)
+          const target = next.findIndex((p) => p.id === targetId)
+          if (!page || target < 0) return null
+          next.splice(target + (after ? 1 : 0), 0, page)
+          return next
+        })
       },
       { signal: controller.signal },
     )
     window.addEventListener('pointercancel', cleanup, { signal: controller.signal })
   }
 
-  async function duplicate(pageId: string) {
-    if (!canvas || busy) return
-    setBusy(true)
-    try {
-      await duplicatePage(canvas, pageId)
-    } catch (error) {
-      if (useStore.getState().canvas?.id !== canvas.id) return
-      useStore
-        .getState()
-        .pushNotice(
-          error instanceof ApiError && typeof error.body.error === 'string'
-            ? error.body.error
-            : 'Could not duplicate the page',
-        )
-    } finally {
-      setBusy(false)
-    }
+  function duplicate(pageId: string) {
+    const canvasId = canvas?.id
+    const task = saveQueue.current.then(async () => {
+      const current = useStore.getState().canvas
+      if (!current || current.id !== canvasId) return
+      setBusy(true)
+      try {
+        await duplicatePage(current, pageId)
+      } catch (error) {
+        if (useStore.getState().canvas?.id !== canvasId) return
+        useStore
+          .getState()
+          .pushNotice(
+            error instanceof ApiError && typeof error.body.error === 'string'
+              ? error.body.error
+              : t('panels.pagesDuplicateFailed'),
+          )
+      } finally {
+        setBusy(false)
+      }
+    })
+    saveQueue.current = task
+    return task
   }
 
   const addPage = (
@@ -139,11 +186,11 @@ export function PagesPanel({ fill = false }: { fill?: boolean }) {
       variant="bare"
       size="icon-sm"
       className={sectionBtn}
-      aria-label="Add page"
+      aria-label={t('panels.pagesAdd')}
       disabled={busy}
       onClick={() => {
-        const page = { id: nanoid(10), name: `Page ${pages.length + 1}` }
-        void save([...pages, page], page.id)
+        const id = nanoid(10)
+        void save((current) => [...current, { id, name: `Page ${current.length + 1}` }], id)
       }}
     >
       <PlusIcon className="size-3.5" />
@@ -182,20 +229,23 @@ export function PagesPanel({ fill = false }: { fill?: boolean }) {
                   className="min-w-0 flex-1"
                   onSubmit={(e) => {
                     e.preventDefault()
-                    if (name.trim()) void save(pages.map((p) => (p.id === page.id ? { ...p, name: name.trim() } : p)))
+                    void commitRename(page)
                   }}
                 >
                   <input
                     autoFocus
-                    aria-label="Page name"
+                    aria-label={t('panels.pagesName')}
                     maxLength={100}
                     disabled={busy}
                     onFocus={(e) => e.target.select()}
                     className="w-full rounded-[6px] bg-surface px-2 py-1 text-[12px] text-ink shadow-elevation-1-focus outline-none"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
+                    onBlur={() => void commitRename(page)}
                     onKeyDown={(e) => {
-                      if (e.key === 'Escape') setRenaming(null)
+                      if (e.key !== 'Escape') return
+                      renameSettled.current = true
+                      setRenaming(null)
                     }}
                   />
                 </form>
@@ -216,8 +266,7 @@ export function PagesPanel({ fill = false }: { fill?: boolean }) {
                   }}
                   onDoubleClick={() => {
                     if (busy || readOnly || didDrag.current) return
-                    setRenaming(page.id)
-                    setName(page.name)
+                    startRename(page)
                   }}
                 >
                   {page.name}
@@ -230,24 +279,20 @@ export function PagesPanel({ fill = false }: { fill?: boolean }) {
               if (renaming === page.id) e.preventDefault()
             }}
           >
-            <ContextMenuItem
-              disabled={busy}
-              onSelect={() => {
-                setRenaming(page.id)
-                setName(page.name)
-              }}
-            >
-              Rename
+            <ContextMenuItem disabled={busy} onSelect={() => startRename(page)}>
+              {t('panels.pagesRename')}
             </ContextMenuItem>
             <ContextMenuItem disabled={busy || pages.length >= 100} onSelect={() => void duplicate(page.id)}>
-              Duplicate page
+              {t('panels.pagesDuplicate')}
             </ContextMenuItem>
             <ContextMenuItem
               tone="danger"
               disabled={busy || pages.length === 1}
-              onSelect={() => void save(pages.filter((p) => p.id !== page.id))}
+              onSelect={() =>
+                void save((current) => (current.length > 1 ? current.filter((p) => p.id !== page.id) : null))
+              }
             >
-              Delete page
+              {t('panels.pagesDelete')}
             </ContextMenuItem>
           </ContextMenuContent>
         </ContextMenu>
@@ -259,7 +304,7 @@ export function PagesPanel({ fill = false }: { fill?: boolean }) {
     <div className={cn('flex flex-none flex-col', fill && 'min-h-0 flex-1')}>
       <div className={cn('mt-1.5 flex h-6 flex-none items-center justify-between pr-2.5 pl-3.5', sectionHeading)}>
         <span data-slot="page-section-heading" className={sectionHeading}>
-          Pages
+          {t('panels.pagesTitle')}
         </span>
         {!readOnly && addPage}
       </div>
@@ -271,8 +316,8 @@ export function PagesPanel({ fill = false }: { fill?: boolean }) {
            div too, before the native event reaches window */
         <div className="px-2 pb-2" onKeyDown={(e) => e.stopPropagation()}>
           <Select value="" disabled={busy || !movableIds.length} onValueChange={(id) => void moveSelection(id)}>
-            <SelectTrigger size="sm" className="w-full" aria-label="Move selection to page">
-              <SelectValue placeholder="Move selection to page…" />
+            <SelectTrigger size="sm" className="w-full" aria-label={t('panels.pagesMoveSelection')}>
+              <SelectValue placeholder={t('panels.pagesMoveSelectionPlaceholder')} />
             </SelectTrigger>
             <SelectContent>
               {pages
