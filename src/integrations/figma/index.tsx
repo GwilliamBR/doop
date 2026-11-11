@@ -516,5 +516,5 @@ export const figmaIntegration: ClientIntegration = {
   ImportSection: FigmaImportSection,
   isConnected: (status) => statusOf(status).connected,
   disconnect: () => req<IntegrationsStatus>('/api/integrations/figma', { method: 'DELETE' }),
-  disconnectCopy: 'Disconnect Figma and remove access to your files. Existing frames imported onto canvases stay.',
+  disconnectCopy: 'automations.figmaDisconnectCopy',
 }

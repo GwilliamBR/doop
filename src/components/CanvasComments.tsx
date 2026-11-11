@@ -12,6 +12,7 @@ import { isResidentLimit } from './TeamAllowance'
 import { CommentComposer, CommentPin, CommentThread, PIN_SCALE } from './CommentPopovers'
 import { cn } from '@/lib/utils'
 import { CommentIcon } from './ui/icons'
+import { useT } from '../lib/i18n'
 
 /** Where the Comment tool was clicked on empty canvas: a world point on the
  *  active page. `at` makes a second click on the same spot a new request. */
@@ -47,6 +48,7 @@ export function CanvasComments({
   /** the composer posted or was cancelled */
   onComposeDone: () => void
 }) {
+  const t = useT()
   const canvasId = useStore((s) => s.canvas?.id)
   const pageId = useStore((s) => (s.canvas ? (s.activePageId ?? canvasPages(s.canvas)[0]!.id) : null))
   const all = useStore((s) => s.comments)
@@ -55,6 +57,8 @@ export function CanvasComments({
     (c): c is CanvasComment => isCanvasComment(c) && c.pageId === pageId && !c.parentId && !c.resolvedAt,
   )
   const [openThread, setOpenThread] = useState<string | null>(null)
+  /* ⇧C hides the pins (an open thread stays); the Comment tool shows them */
+  const pinsShown = useStore((s) => s.viewOptions.comments || s.tool === 'comment')
   const rootRef = useRef<HTMLDivElement>(null)
   /* a pin being dragged, from this layer or out of a frame: its ghost rides
      the pointer here, above every frame, where no frame surface clips it */
@@ -124,6 +128,8 @@ export function CanvasComments({
         const replies = all.filter((r) => r.parentId === c.id).sort((a, b) => a.at - b.at)
         const thread: [ElementComment, ...ElementComment[]] = [c, ...replies]
         const open = openThread === c.id
+        /* a pin being dragged stays mounted: its release listeners live on it */
+        if (!pinsShown && !open && drag?.id !== c.id) return null
         return (
           <CommentPin
             key={c.id}
@@ -192,7 +198,7 @@ export function CanvasComments({
             className={cn('absolute -top-[13px]', composeAt.placement.side === 'left' ? 'right-[20px]' : 'left-[20px]')}
             style={composeAt.placement.shift ? { transform: `translateX(${composeAt.placement.shift}px)` } : undefined}
           >
-            <CommentComposer placeholder="Leave a comment here…" onSubmit={post} onCancel={close} />
+            <CommentComposer placeholder={t('stage.commentHere')} onSubmit={post} onCancel={close} />
           </div>
         </div>
       )}

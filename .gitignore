@@ -3,8 +3,11 @@ scratch
 dist
 public/claude-extension
 data
+data.*/
 desktop/src-tauri/target
 desktop/src-tauri/gen
+desktop/src-tauri-chromium/target
+desktop/src-tauri-chromium/gen
 .DS_Store
 .env*
 !.env.example
@@ -19,3 +22,6 @@ chatgpt-plugin/dist/
 # the built component catalogue
 storybook-static/
 *storybook.log
+
+# Playwright MCP snapshots, logs and screenshots
+.playwright-mcp/
